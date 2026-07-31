@@ -203,6 +203,23 @@
   .share-link:hover{opacity:.75;}
   .share-link svg{width:.82em;height:.82em;stroke:currentColor;fill:none;stroke-width:2.4;}
 
+  .btn-share{
+    display:inline-flex;align-items:center;gap:12px;background:var(--accent);color:#fff;border:none;cursor:pointer;
+    font-family:inherit;font-weight:700;font-size:clamp(17px,1.9vw,21px);
+    padding:.72em 1.4em;border-radius:100px;transition:transform .16s,filter .16s;
+    box-shadow:0 12px 26px -12px rgba(0,0,0,.4);
+  }
+  .btn-share:hover{transform:translateY(-2px);filter:brightness(1.06);}
+  .btn-share:disabled{opacity:.6;cursor:default;transform:none;}
+  .btn-share svg{width:1.05em;height:1.05em;stroke:#fff;}
+  .share-sub{margin-top:16px;font-size:clamp(13px,1.55vw,16px);color:var(--muted);font-weight:500;line-height:1.55;max-width:52ch;}
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:13px 24px;border-radius:100px;font-size:15px;font-weight:600;
+    opacity:0;transition:.3s;z-index:60;pointer-events:none;max-width:88vw;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
   @media (prefers-reduced-motion:reduce){
     *{transition-duration:.01ms !important;animation-duration:.01ms !important;}
   }
@@ -259,16 +276,21 @@
           </div>
         </div>
         <div class="result-actions">
-          <div class="share-note"><b>Snap it.</b> <a class="share-link" id="shareLink" href="https://adobe-dex.slack.com/archives/C0180C3K82J/p1785517207889149" target="_blank" rel="noopener">Share it<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a> on the #site-sanjose Slack thread.</div>
+          <button class="btn-share" id="shareBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3M8 7l4-4 4 4"/></svg>
+            Share my card
+          </button>
           <button class="btn-next" id="nextBtn">
             Next visitor
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-6.5 2.8L3 8M3 4v4h4"/></svg>
           </button>
         </div>
+        <div class="share-sub">Send it to Slack, save it to your phone, or text a coworker. <a class="share-link" id="slackLink" href="https://adobe-dex.slack.com/archives/C0180C3K82J/p1785517207889149" target="_blank" rel="noopener">Open #site-sanjose<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a></div>
       </div>
     </div>
   </section>
 
+  <div class="toast" id="toast"></div>
 </div>
 
 <script>
@@ -307,6 +329,10 @@
     }
   };
   var ORDER = ["completionist","explorer","sprinter","architect"]; // stable order for tally + tiebreak fallback
+  var SOFT = {completionist:"#E4F1EC", explorer:"#E5F0FD", sprinter:"#FBE7F0", architect:"#FDF0DF"};
+  // Live quiz URL — used in the shared card + share text. Update if the path changes.
+  var QUIZ_URL = "https://main--elts-tech-fair--pwaziri.aem.live/tools/quiz/index.html";
+  var currentKey = null; // archetype currently shown on the result screen
 
   /* ---------- questions (each option maps to one archetype) ---------- */
   var QUESTIONS = [
@@ -418,6 +444,7 @@
   /* ---------- result ---------- */
   function finish(){
     var key=score();
+    currentKey=key;
     var T=TYPES[key];
     $("stage").className="stage "+T.theme;
     $("glyph").innerHTML=T.glyph;
@@ -429,15 +456,104 @@
   }
 
   function reset(){
-    idx=0; answers=[];
+    idx=0; answers=[]; currentKey=null;
     $("stage").className="stage";
     buildDots(); renderQ();
     show("intro");
   }
 
+  /* ---------- shareable result card (rendered on a canvas, works on iOS) ---------- */
+  var CARD_FONT="'Adobe Clean','adobe-clean','Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+  function drawGlyph(ctx,svgStr,x,y,size,color,lw){
+    var d=document.createElement("div"); d.innerHTML=svgStr; var svg=d.querySelector("svg");
+    ctx.save(); ctx.translate(x,y); ctx.scale(size/24,size/24);
+    ctx.strokeStyle=color; ctx.lineWidth=lw; ctx.lineJoin="round"; ctx.lineCap="round";
+    Array.prototype.forEach.call(svg.querySelectorAll("circle"),function(c){ ctx.beginPath(); ctx.arc(+c.getAttribute("cx"),+c.getAttribute("cy"),+c.getAttribute("r"),0,Math.PI*2); ctx.stroke(); });
+    Array.prototype.forEach.call(svg.querySelectorAll("path"),function(p){ ctx.stroke(new Path2D(p.getAttribute("d"))); });
+    ctx.restore();
+  }
+  function wrapText(ctx,text,x,y,maxW,lh){
+    var words=text.split(" "), line="", yy=y;
+    for(var i=0;i<words.length;i++){
+      var t=line?line+" "+words[i]:words[i];
+      if(ctx.measureText(t).width>maxW && line){ ctx.fillText(line,x,yy); line=words[i]; yy+=lh; }
+      else line=t;
+    }
+    ctx.fillText(line,x,yy); return yy+lh;
+  }
+  function fitFont(ctx,text,weight,startPx,maxW){
+    var px=startPx;
+    do{ ctx.font=weight+" "+px+"px "+CARD_FONT; if(ctx.measureText(text).width<=maxW) break; px-=2; }while(px>28);
+    return px;
+  }
+  function letterSpaced(ctx,text,x,y,gap){ var lx=x; for(var i=0;i<text.length;i++){ ctx.fillText(text[i],lx,y); lx+=ctx.measureText(text[i]).width+gap; } }
+
+  function renderCard(key){
+    var W=1080,H=1350,P=88, T=TYPES[key], soft=SOFT[key];
+    var c=document.createElement("canvas"); c.width=W; c.height=H;
+    var ctx=c.getContext("2d"); ctx.textBaseline="alphabetic";
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle=soft; ctx.fillRect(0,0,W,486);
+    ctx.fillStyle="#EB1000"; ctx.fillRect(0,0,14,H);
+    ctx.fillStyle=T.color; roundRect(ctx,P,84,150,150,32); ctx.fill();
+    drawGlyph(ctx,T.glyph,P+33,84+33,84,"#ffffff",2.1);
+    ctx.fillStyle=T.color; ctx.font="700 25px "+CARD_FONT; letterSpaced(ctx,"YOUR ALM LEARNING PERSONALITY",P,300,3);
+    var npx=fitFont(ctx,T.name,"800",96,W-2*P);
+    ctx.fillStyle="#1A1A1A"; ctx.font="800 "+npx+"px "+CARD_FONT; ctx.fillText(T.name,P,300+npx*0.92+18);
+    ctx.fillStyle="#1A1A1A"; ctx.font="600 40px "+CARD_FONT; ctx.fillText(T.tag,P,462);
+    ctx.fillStyle="#444"; ctx.font="400 38px "+CARD_FONT;
+    var y=wrapText(ctx,T.desc,P,566,W-2*P,54)+26;
+    var boxPadX=34, boxPadY=30, innerW=W-2*P-boxPadX*2;
+    ctx.font="600 34px "+CARD_FONT;
+    var words=T.tool.split(" "), line="", lines=1;
+    for(var i=0;i<words.length;i++){ var t=line?line+" "+words[i]:words[i]; if(ctx.measureText(t).width>innerW && line){lines++;line=words[i];}else line=t; }
+    var boxH=boxPadY*2+22+46*lines;
+    ctx.fillStyle=soft; roundRect(ctx,P,y,W-2*P,boxH,18); ctx.fill();
+    ctx.fillStyle=T.color; ctx.fillRect(P,y,7,boxH);
+    ctx.fillStyle="#6B6B6B"; ctx.font="700 22px "+CARD_FONT; letterSpaced(ctx,"YOUR ALM POWER TOOL",P+boxPadX,y+boxPadY+16,2.5);
+    ctx.fillStyle="#1A1A1A"; ctx.font="600 34px "+CARD_FONT; wrapText(ctx,T.tool,P+boxPadX,y+boxPadY+16+46,innerW,46);
+    ctx.strokeStyle="#E6E3E1"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(P,1196); ctx.lineTo(W-P,1196); ctx.stroke();
+    ctx.fillStyle="#1A1A1A"; ctx.font="700 33px "+CARD_FONT; ctx.fillText("What's your ALM learning personality?",P,1252);
+    ctx.fillStyle="#6B6B6B"; ctx.font="400 27px "+CARD_FONT; ctx.fillText("Take the 60-second quiz \u2014 link in the message.",P,1294);
+    ctx.fillStyle="#EB1000"; ctx.font="800 40px "+CARD_FONT; ctx.fillText("Adobe",P,1336);
+    var aw=ctx.measureText("Adobe").width;
+    ctx.fillStyle="#6B6B6B"; ctx.font="600 24px "+CARD_FONT; ctx.fillText("ELTS \u00b7 Customer Zero",P+aw+16,1336);
+    return c;
+  }
+  function canvasToBlob(c){ return new Promise(function(res,rej){ try{ res(dataURItoBlob(c.toDataURL("image/png"))); }catch(e){ rej(e); } }); }
+  function dataURItoBlob(uri){ var b=atob(uri.split(",")[1]), a=new Uint8Array(b.length); for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i); return new Blob([a],{type:"image/png"}); }
+
+  function shareText(key){ var T=TYPES[key]; return "I'm "+T.name+" \u2014 "+T.tag+" What's your ALM learning personality? "+QUIZ_URL; }
+  function toast(msg){ var t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(function(){t.classList.remove("show");},2600); }
+  function downloadBlob(blob,name){ var url=URL.createObjectURL(blob),a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(url);},1000); }
+  function copyText(txt){ try{ if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt); }catch(e){} }
+
+  function shareCard(){
+    if(!currentKey) return;
+    var btn=$("shareBtn"); btn.disabled=true;
+    var canvas=renderCard(currentKey);
+    canvasToBlob(canvas).then(function(blob){
+      var file=new File([blob],"my-alm-learning-personality.png",{type:"image/png"});
+      var data={files:[file], title:"My ALM Learning Personality", text:shareText(currentKey)};
+      if(navigator.canShare && navigator.canShare({files:[file]}) && navigator.share){
+        navigator.share(data).catch(function(e){ if(e && e.name!=="AbortError"){ fallbackShare(blob); } })
+          .finally(function(){ btn.disabled=false; });
+      } else {
+        fallbackShare(blob); btn.disabled=false;
+      }
+    }).catch(function(){ btn.disabled=false; toast("Couldn't build the card \u2014 try again."); });
+  }
+  function fallbackShare(blob){
+    downloadBlob(blob,"my-alm-learning-personality.png");
+    copyText(shareText(currentKey));
+    toast("Card saved to your device \u00b7 link copied to paste");
+  }
+
   /* ---------- wire up ---------- */
   $("startBtn").addEventListener("click",function(){ show("quiz"); renderQ(); });
   $("nextBtn").addEventListener("click",reset);
+  $("shareBtn").addEventListener("click",shareCard);
 
   buildDots();
 })();
