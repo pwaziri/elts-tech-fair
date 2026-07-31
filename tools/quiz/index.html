@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ALM Learning Personality</title>
+<style>
+  :root{
+    --red:#EB1000;
+    --ink:#1A1A1A;
+    --muted:#6B6B6B;
+    --line:#E6E3E1;
+    --paper:#FFFFFF;
+    --panel:#FAF8F7;
+    /* active accent, overridden per archetype on the result screen */
+    --accent:#EB1000;
+    --accent-soft:#FCE9E7;
+  }
+
+  /* archetype accent tokens */
+  .theme-completionist{--accent:#12805C;--accent-soft:#E4F1EC;}
+  .theme-explorer{--accent:#1473E6;--accent-soft:#E5F0FD;}
+  .theme-sprinter{--accent:#D6266E;--accent-soft:#FBE7F0;}
+  .theme-architect{--accent:#E68619;--accent-soft:#FDF0DF;}
+
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+
+  html,body{height:100%;}
+  body{
+    font-family:'Adobe Clean','adobe-clean','Source Sans 3','Source Sans Pro',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+
+  .stage{
+    position:relative;
+    height:100dvh;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  /* thin brand thread on the left, unaltered */
+  .stage::before{
+    content:"";
+    position:absolute;left:0;top:0;bottom:0;
+    width:10px;background:var(--red);z-index:20;
+  }
+
+  /* ---------- shared shell ---------- */
+  .screen{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;
+    padding:clamp(28px,5vw,72px);
+    padding-left:clamp(40px,6vw,96px);
+    opacity:0;visibility:hidden;
+    transform:translateY(12px);
+    transition:opacity .45s ease,transform .45s ease,visibility .45s;
+  }
+  .screen.active{opacity:1;visibility:visible;transform:none;}
+
+  .eyebrow{
+    font-size:clamp(12px,1.4vw,15px);
+    letter-spacing:.16em;text-transform:uppercase;
+    font-weight:700;color:var(--red);
+    display:flex;align-items:center;gap:10px;
+  }
+  .eyebrow::after{content:"";flex:0 0 auto;width:34px;height:2px;background:var(--red);opacity:.5;}
+
+  .wordmark{
+    position:absolute;bottom:clamp(22px,3vw,40px);left:clamp(40px,6vw,96px);
+    font-weight:800;font-size:clamp(20px,2.2vw,26px);color:var(--red);letter-spacing:-.02em;
+  }
+  .wordmark span{color:var(--muted);font-weight:600;font-size:.62em;letter-spacing:0;margin-left:10px;}
+
+  /* ---------- intro ---------- */
+  #intro{justify-content:center;}
+  #intro .inner{max-width:900px;}
+  #intro h1{
+    font-weight:800;letter-spacing:-.03em;line-height:.98;
+    font-size:clamp(46px,8.5vw,116px);
+    margin:.28em 0 .3em;
+  }
+  #intro h1 .em{color:var(--red);}
+  #intro p.lede{
+    font-size:clamp(18px,2.3vw,27px);color:var(--muted);
+    max-width:30ch;line-height:1.4;font-weight:400;
+  }
+  .cta{
+    margin-top:clamp(30px,4.5vw,54px);
+    display:inline-flex;align-items:center;gap:14px;
+    background:var(--red);color:#fff;border:none;cursor:pointer;
+    font-family:inherit;font-weight:700;
+    font-size:clamp(19px,2vw,24px);
+    padding:.72em 1.35em;border-radius:100px;
+    transition:transform .18s ease,box-shadow .18s ease;
+    box-shadow:0 10px 26px -12px rgba(235,16,0,.7);
+  }
+  .cta:hover{transform:translateY(-2px);box-shadow:0 16px 34px -14px rgba(235,16,0,.75);}
+  .cta:active{transform:translateY(0);}
+  .cta svg{width:1em;height:1em;}
+  .tiny{margin-top:16px;font-size:clamp(13px,1.4vw,16px);color:var(--muted);}
+
+  /* ---------- question ---------- */
+  #quiz{justify-content:flex-start;}
+  .qhead{display:flex;align-items:center;justify-content:space-between;gap:20px;}
+  .dots{display:flex;gap:9px;}
+  .dot{width:11px;height:11px;border-radius:50%;background:var(--line);transition:background .3s,transform .3s;}
+  .dot.done{background:var(--red);}
+  .dot.current{background:var(--red);transform:scale(1.35);}
+  .qcount{font-size:clamp(13px,1.5vw,16px);font-weight:700;color:var(--muted);letter-spacing:.04em;}
+
+  .qbody{flex:1;display:flex;flex-direction:column;justify-content:center;max-width:1100px;width:100%;}
+  .qtext{
+    font-weight:800;letter-spacing:-.02em;line-height:1.05;
+    font-size:clamp(30px,4.6vw,60px);
+    margin-bottom:clamp(24px,3.4vw,46px);max-width:18ch;
+  }
+  .options{display:grid;grid-template-columns:1fr 1fr;gap:clamp(12px,1.6vw,18px);}
+  @media (max-width:720px){.options{grid-template-columns:1fr;}}
+
+  .opt{
+    text-align:left;cursor:pointer;font-family:inherit;
+    background:var(--panel);border:2px solid var(--line);border-radius:16px;
+    padding:clamp(16px,2vw,24px) clamp(18px,2.2vw,28px);
+    font-size:clamp(16px,1.9vw,22px);font-weight:600;color:var(--ink);line-height:1.3;
+    display:flex;align-items:center;gap:16px;
+    transition:border-color .18s,background .18s,transform .12s;
+  }
+  .opt .tick{
+    flex:0 0 auto;width:26px;height:26px;border-radius:50%;
+    border:2px solid var(--line);transition:border-color .18s,background .18s;
+    display:grid;place-items:center;
+  }
+  .opt .tick svg{width:14px;height:14px;opacity:0;transform:scale(.5);transition:.18s;stroke:#fff;}
+  .opt:hover{border-color:var(--red);transform:translateY(-2px);}
+  .opt.chosen{border-color:var(--red);background:#FCE9E7;}
+  .opt.chosen .tick{border-color:var(--red);background:var(--red);}
+  .opt.chosen .tick svg{opacity:1;transform:none;}
+
+  /* ---------- result ---------- */
+  #result{justify-content:center;}
+  .card{
+    max-width:1000px;width:100%;
+    border:2px solid var(--accent);border-radius:26px;overflow:hidden;
+    background:#fff;display:flex;flex-direction:column;
+    box-shadow:0 30px 70px -40px rgba(0,0,0,.4);
+  }
+  .card-top{
+    background:var(--accent-soft);
+    padding:clamp(24px,3.4vw,44px) clamp(28px,3.6vw,52px);
+    display:flex;align-items:center;gap:clamp(20px,3vw,36px);
+  }
+  .glyph{
+    flex:0 0 auto;width:clamp(72px,9vw,108px);height:clamp(72px,9vw,108px);
+    border-radius:22px;background:var(--accent);display:grid;place-items:center;
+  }
+  .glyph svg{width:56%;height:56%;stroke:#fff;fill:none;stroke-width:2.1;}
+  .card-title .kick{
+    font-size:clamp(12px,1.4vw,15px);letter-spacing:.16em;text-transform:uppercase;
+    font-weight:700;color:var(--accent);
+  }
+  .card-title h2{
+    font-weight:800;letter-spacing:-.02em;line-height:1;
+    font-size:clamp(34px,5.4vw,68px);margin:.12em 0 .1em;
+  }
+  .card-title .tag{font-size:clamp(16px,2vw,24px);color:var(--ink);font-weight:600;}
+
+  .card-body{padding:clamp(24px,3.4vw,44px) clamp(28px,3.6vw,52px);display:flex;flex-direction:column;gap:clamp(18px,2.4vw,26px);}
+  .desc{font-size:clamp(16px,1.95vw,22px);line-height:1.5;color:#333;max-width:60ch;}
+  .powertool{
+    display:flex;align-items:flex-start;gap:14px;
+    background:var(--panel);border-left:4px solid var(--accent);
+    border-radius:0 12px 12px 0;padding:clamp(14px,1.8vw,20px) clamp(16px,2vw,24px);
+  }
+  .powertool .lbl{font-size:clamp(11px,1.3vw,13px);letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--muted);margin-bottom:4px;}
+  .powertool .val{font-size:clamp(15px,1.85vw,21px);font-weight:600;line-height:1.35;}
+
+  .result-actions{
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    margin-top:clamp(22px,3vw,34px);
+  }
+  .share-note{font-size:clamp(14px,1.6vw,18px);color:var(--muted);font-weight:500;}
+  .share-note b{color:var(--ink);font-weight:700;}
+  .btn-next{
+    display:inline-flex;align-items:center;gap:12px;
+    background:var(--ink);color:#fff;border:none;cursor:pointer;font-family:inherit;
+    font-weight:700;font-size:clamp(16px,1.8vw,20px);
+    padding:.66em 1.25em;border-radius:100px;transition:transform .16s,background .16s;
+  }
+  .btn-next:hover{transform:translateY(-2px);background:#000;}
+  .btn-next svg{width:1em;height:1em;stroke:#fff;}
+
+  .share-link{
+    color:var(--red);font-weight:800;text-decoration:none;white-space:nowrap;
+    border-bottom:2px solid var(--red);padding-bottom:1px;
+    display:inline-flex;align-items:center;gap:5px;transition:opacity .15s;
+  }
+  .share-link:hover{opacity:.75;}
+  .share-link svg{width:.82em;height:.82em;stroke:currentColor;fill:none;stroke-width:2.4;}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition-duration:.01ms !important;animation-duration:.01ms !important;}
+  }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+
+  <!-- INTRO -->
+  <section class="screen active" id="intro">
+    <div class="inner">
+      <div class="eyebrow">Adobe Learning Manager · Customer Zero</div>
+      <h1>What's your<br><span class="em">learning</span> personality?</h1>
+      <p class="lede">Six quick questions. One archetype. Find out how you actually learn — then share it with the team.</p>
+      <button class="cta" id="startBtn">
+        Start
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+      <div class="tiny">Takes about 60 seconds.</div>
+    </div>
+    <div class="wordmark">Adobe<span>ELTS · Tech Fair 2026</span></div>
+  </section>
+
+  <!-- QUIZ -->
+  <section class="screen" id="quiz">
+    <div class="qhead">
+      <div class="dots" id="dots"></div>
+      <div class="qcount" id="qcount">01 / 06</div>
+    </div>
+    <div class="qbody">
+      <div class="qtext" id="qtext"></div>
+      <div class="options" id="options"></div>
+    </div>
+    <div class="wordmark">Adobe</div>
+  </section>
+
+  <!-- RESULT -->
+  <section class="screen" id="result">
+    <div class="card" id="card">
+      <div class="card-top">
+        <div class="glyph" id="glyph"></div>
+        <div class="card-title">
+          <div class="kick">Your learning personality</div>
+          <h2 id="rName"></h2>
+          <div class="tag" id="rTag"></div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="desc" id="rDesc"></p>
+        <div class="powertool">
+          <div>
+            <div class="lbl">Your ALM power tool</div>
+            <div class="val" id="rTool"></div>
+          </div>
+        </div>
+        <div class="result-actions">
+          <div class="share-note"><b>Snap it.</b> <a class="share-link" id="shareLink" href="https://adobe-dex.slack.com/archives/C0180C3K82J/p1785517207889149" target="_blank" rel="noopener">Share it<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a> on the #site-sanjose Slack thread.</div>
+          <button class="btn-next" id="nextBtn">
+            Next visitor
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-6.5 2.8L3 8M3 4v4h4"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- archetype definitions ---------- */
+  var TYPES = {
+    completionist:{
+      name:"The Completionist", theme:"theme-completionist", color:"#12805C",
+      tag:"You finish what you start.",
+      desc:"Open loops bug you. You'd rather go deep and cross the finish line than leave a trail of half-done courses \u2014 and a progress bar at 100% is a small, genuine joy.",
+      tool:"Progress tracking & gamification \u2014 badges, streaks, and that satisfying 100%.",
+      glyph:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>'
+    },
+    explorer:{
+      name:"The Explorer", theme:"theme-explorer", color:"#1473E6",
+      tag:"You learn by wandering.",
+      desc:"Curiosity runs the show. You follow the interesting thread, sample widely, and end up knowing a little about a lot \u2014 and a lot about whatever grabbed you along the way.",
+      tool:"The catalog & \u2018Recommended for you\u2019 \u2014 fresh rabbit holes, on tap.",
+      glyph:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5 5-2z"/></svg>'
+    },
+    sprinter:{
+      name:"The Sprinter", theme:"theme-sprinter", color:"#D6266E",
+      tag:"You learn exactly when you need it.",
+      desc:"Just-in-time, no filler. You\u2019ve got a problem right now, and you want the five-minute answer that unblocks you and gets you straight back to the work.",
+      tool:"Search & mobile access \u2014 the fast lane to the one thing you need.",
+      glyph:'<svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11l-1 8.5L19.5 10H13l0-8z"/></svg>'
+    },
+    architect:{
+      name:"The Architect", theme:"theme-architect", color:"#E68619",
+      tag:"You build the plan, then the skill.",
+      desc:"You think in systems. You map where you\u2019re headed before you start, stack skills in order, and turn a vague \u2018I should learn this\u2019 into a real path from A to Z.",
+      tool:"Learning Paths \u2014 structured progression toward the goal.",
+      glyph:'<svg viewBox="0 0 24 24"><path d="M3 21h18M6 21V9l6-5 6 5v12M9 21v-5h6v5"/></svg>'
+    }
+  };
+  var ORDER = ["completionist","explorer","sprinter","architect"]; // stable order for tally + tiebreak fallback
+
+  /* ---------- questions (each option maps to one archetype) ---------- */
+  var QUESTIONS = [
+    { q:"You've got a free hour to learn something. You\u2026",
+      a:[
+        {t:"Finish a course you already started", k:"completionist"},
+        {t:"Browse for something totally new", k:"explorer"},
+        {t:"Grab a quick how-to for something you need now", k:"sprinter"},
+        {t:"Map out a full plan for a bigger goal", k:"architect"}
+      ]},
+    { q:"A skill you need for work just landed. First move?",
+      a:[
+        {t:"Search for the fastest tutorial and get going", k:"sprinter"},
+        {t:"Find a path from basics to advanced", k:"architect"},
+        {t:"See what related topics exist and wander in", k:"explorer"},
+        {t:"Enroll in the most thorough course and see it through", k:"completionist"}
+      ]},
+    { q:"Your ideal learning win is\u2026",
+      a:[
+        {t:"A 100% completion badge", k:"completionist"},
+        {t:"Discovering something you didn't know existed", k:"explorer"},
+        {t:"Solving the problem in front of you, fast", k:"sprinter"},
+        {t:"Leveling up a skill, step by step", k:"architect"}
+      ]},
+    { q:"Your learning history looks like\u2026",
+      a:[
+        {t:"A little bit of everything", k:"explorer"},
+        {t:"A tidy list of finished courses", k:"completionist"},
+        {t:"A deliberate progression toward a goal", k:"architect"},
+        {t:"Whatever I needed, right when I needed it", k:"sprinter"}
+      ]},
+    { q:"Pick your learning spirit tool:",
+      a:[
+        {t:"The search bar", k:"sprinter"},
+        {t:"The learning-path builder", k:"architect"},
+        {t:"The \u2018recommended for you\u2019 shelf", k:"explorer"},
+        {t:"The progress tracker", k:"completionist"}
+      ]},
+    { q:"You feel best about learning when\u2026",
+      a:[
+        {t:"Every module is checked off", k:"completionist"},
+        {t:"You can see how it fits the bigger plan", k:"architect"},
+        {t:"You've got three new things to explore next", k:"explorer"},
+        {t:"You applied it immediately and it worked", k:"sprinter"}
+      ]}
+  ];
+
+  /* ---------- state ---------- */
+  var idx=0, answers=[];
+  var $=function(id){return document.getElementById(id);};
+
+  function show(id){
+    var s=document.querySelectorAll(".screen");
+    for(var i=0;i<s.length;i++) s[i].classList.remove("active");
+    $(id).classList.add("active");
+  }
+
+  /* ---------- quiz flow ---------- */
+  function buildDots(){
+    var d=$("dots"); d.innerHTML="";
+    for(var i=0;i<QUESTIONS.length;i++){
+      var el=document.createElement("div"); el.className="dot"; el.dataset.i=i; d.appendChild(el);
+    }
+  }
+  function pad(n){return (n<10?"0":"")+n;}
+  function renderQ(){
+    var Q=QUESTIONS[idx];
+    $("qtext").textContent=Q.q;
+    $("qcount").textContent=pad(idx+1)+" / "+pad(QUESTIONS.length);
+    // dots
+    var dots=$("dots").children;
+    for(var i=0;i<dots.length;i++){
+      dots[i].className="dot"+(i<idx?" done":"")+(i===idx?" current":"");
+    }
+    // options
+    var wrap=$("options"); wrap.innerHTML="";
+    Q.a.forEach(function(opt){
+      var b=document.createElement("button");
+      b.className="opt"; b.type="button";
+      b.innerHTML='<span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"><path d="M5 13l4 4 10-11"/></svg></span><span>'+opt.t+'</span>';
+      b.addEventListener("click",function(){ choose(opt.k,b); });
+      wrap.appendChild(b);
+    });
+  }
+  function choose(key,btn){
+    var chosen=document.querySelectorAll(".opt.chosen");
+    for(var i=0;i<chosen.length;i++) chosen[i].classList.remove("chosen");
+    btn.classList.add("chosen");
+    answers[idx]=key;
+    setTimeout(function(){
+      if(idx<QUESTIONS.length-1){ idx++; renderQ(); }
+      else finish();
+    },240);
+  }
+
+  /* ---------- scoring ---------- */
+  function score(){
+    var count={completionist:0,explorer:0,sprinter:0,architect:0};
+    answers.forEach(function(k){count[k]++;});
+    var max=-1;
+    for(var k in count){ if(count[k]>max) max=count[k]; }
+    var leaders=ORDER.filter(function(k){return count[k]===max;});
+    if(leaders.length===1) return leaders[0];
+    // tiebreak: whichever tied archetype the visitor picked earliest
+    for(var i=0;i<answers.length;i++){ if(leaders.indexOf(answers[i])>-1) return answers[i]; }
+    return leaders[0];
+  }
+
+  /* ---------- result ---------- */
+  function finish(){
+    var key=score();
+    var T=TYPES[key];
+    $("stage").className="stage "+T.theme;
+    $("glyph").innerHTML=T.glyph;
+    $("rName").textContent=T.name;
+    $("rTag").textContent=T.tag;
+    $("rDesc").textContent=T.desc;
+    $("rTool").textContent=T.tool;
+    show("result");
+  }
+
+  function reset(){
+    idx=0; answers=[];
+    $("stage").className="stage";
+    buildDots(); renderQ();
+    show("intro");
+  }
+
+  /* ---------- wire up ---------- */
+  $("startBtn").addEventListener("click",function(){ show("quiz"); renderQ(); });
+  $("nextBtn").addEventListener("click",reset);
+
+  buildDots();
+})();
+</script>
+</body>
+</html>
