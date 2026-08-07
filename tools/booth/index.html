@@ -84,6 +84,37 @@
   #start .pl svg{width:52px;height:52px;fill:#fff;margin-left:6px;}
   #start h3{font-size:40px;font-weight:800;letter-spacing:-.02em;}
   #start p{font-size:20px;color:#bbb;margin-top:12px;}
+
+  /* ---------- SLIDE 1 MOTION ---------- */
+  @keyframes statReveal{0%{opacity:0;transform:translateY(36px) scale(.82);}68%{opacity:1;transform:translateY(-5px) scale(1.045);}100%{opacity:1;transform:translateY(0) scale(1);}}
+  @keyframes accentPulse{0%,100%{box-shadow:0 0 0 0 rgba(235,16,0,0);}50%{box-shadow:0 14px 34px -14px rgba(235,16,0,.68);}}
+  @keyframes cardReveal{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes flowReveal{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes stepGlow{0%,22%,100%{transform:translateY(0);border-color:var(--line);box-shadow:none;}11%{transform:translateY(-4px);border-color:rgba(235,16,0,.55);box-shadow:0 12px 25px rgba(235,16,0,.15);}}
+  @keyframes arrowFlow{0%,100%{transform:translateX(0);opacity:.55;}50%{transform:translateX(6px);opacity:1;}}
+  @keyframes leftReveal{from{opacity:0;transform:translateX(-24px);}to{opacity:1;transform:translateX(0);}}
+
+  #stage > .slide:first-child .eyebrow,#stage > .slide:first-child h1,#stage > .slide:first-child .sub,#stage > .slide:first-child .premise,#stage > .slide:first-child .stat,#stage > .slide:first-child .ai-card,#stage > .slide:first-child .lstep,#stage > .slide:first-child .larr{opacity:0;}
+  #stage > .slide:first-child.on .eyebrow{animation:leftReveal .55s ease .05s both;}
+  #stage > .slide:first-child.on h1{animation:leftReveal .65s cubic-bezier(.2,.8,.2,1) .15s both;}
+  #stage > .slide:first-child.on .sub{animation:leftReveal .55s ease .30s both;}
+  #stage > .slide:first-child.on .premise{animation:leftReveal .6s ease .45s both;}
+  #stage > .slide:first-child.on .stat:nth-child(1){animation:statReveal .8s cubic-bezier(.2,.8,.2,1) .20s both,accentPulse 3.2s ease-in-out 2.1s infinite;}
+  #stage > .slide:first-child.on .stat:nth-child(2){animation:statReveal .8s cubic-bezier(.2,.8,.2,1) .45s both;}
+  #stage > .slide:first-child.on .stat:nth-child(3){animation:statReveal .8s cubic-bezier(.2,.8,.2,1) .70s both;}
+  #stage > .slide:first-child.on .ai-card:nth-child(1){animation:cardReveal .5s ease .95s both;}
+  #stage > .slide:first-child.on .ai-card:nth-child(2){animation:cardReveal .5s ease 1.10s both;}
+  #stage > .slide:first-child.on .ai-card:nth-child(3){animation:cardReveal .5s ease 1.25s both;}
+  #stage > .slide:first-child.on .ai-card:nth-child(4){animation:cardReveal .5s ease 1.40s both;}
+  #stage > .slide:first-child.on .loop .lstep:nth-child(1){animation:flowReveal .45s ease 1.55s both,stepGlow 6s ease-in-out 2.3s infinite;}
+  #stage > .slide:first-child.on .loop .lstep:nth-child(3){animation:flowReveal .45s ease 1.75s both,stepGlow 6s ease-in-out 4.3s infinite;}
+  #stage > .slide:first-child.on .loop .lstep:nth-child(5){animation:flowReveal .45s ease 1.95s both,stepGlow 6s ease-in-out 6.3s infinite;}
+  #stage > .slide:first-child.on .larr{animation:flowReveal .45s ease 1.75s both,arrowFlow 1.3s ease-in-out 2.2s infinite;}
+  @media (prefers-reduced-motion:reduce){
+    #stage > .slide:first-child *{animation:none !important;transition:none !important;}
+    #stage > .slide:first-child .eyebrow,#stage > .slide:first-child h1,#stage > .slide:first-child .sub,#stage > .slide:first-child .premise,#stage > .slide:first-child .stat,#stage > .slide:first-child .ai-card,#stage > .slide:first-child .lstep,#stage > .slide:first-child .larr{opacity:1 !important;transform:none !important;}
+  }
+
 </style>
 </head>
 <body>
@@ -104,9 +135,9 @@
         <div>
           <div class="slabel">By the numbers</div>
           <div class="stats">
-            <div class="stat accent"><div class="num">45,570</div><div class="lbl">active learners</div></div>
-            <div class="stat"><div class="num">398,250</div><div class="lbl">course completions in 2026</div></div>
-            <div class="stat"><div class="num">4,104</div><div class="lbl">learning paths created</div></div>
+            <div class="stat accent"><div class="num" data-target="45570">0</div><div class="lbl">active learners</div></div>
+            <div class="stat"><div class="num" data-target="398250">0</div><div class="lbl">course completions in 2026</div></div>
+            <div class="stat"><div class="num" data-target="4104">0</div><div class="lbl">learning paths created</div></div>
           </div>
         </div>
         <div>
@@ -224,11 +255,35 @@
 
   function next(){ show((i+1) % slides.length); }
 
+  function animateCounters(runToken){
+    var nums=slides[0].querySelectorAll(".stat .num");
+    Array.prototype.forEach.call(nums,function(el,idx){
+      var target=parseInt(el.getAttribute("data-target")||"0",10);
+      var delay=250+(idx*250), duration=1650;
+      el.textContent="0";
+      setTimeout(function(){
+        if(runToken!==token||i!==0) return;
+        var start=null;
+        function step(ts){
+          if(runToken!==token||i!==0) return;
+          if(start===null) start=ts;
+          var p=Math.min((ts-start)/duration,1);
+          var eased=1-Math.pow(1-p,3);
+          el.textContent=Math.round(target*eased).toLocaleString("en-US");
+          if(p<1) requestAnimationFrame(step);
+          else el.textContent=target.toLocaleString("en-US");
+        }
+        requestAnimationFrame(step);
+      },delay);
+    });
+  }
+
   function show(n){
     token++; var my=token; i=n;
     pauseAll();
     slides.forEach(function(s,idx){ s.classList.toggle("on", idx===n); });
     var el=slides[n], v=vids[n];
+    if(n===0){ animateCounters(my); }
     if(v){
       v.muted=!soundOn;
       try{ v.currentTime=0; }catch(e){}
